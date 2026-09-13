@@ -493,6 +493,17 @@ jobs:
           echo "  MiniMax API Keys: $([ -n "$MINIMAX_API_KEYS" ] && echo '✅ Configured' || echo '⚪ Not Configured')"
           echo "  Brave API Keys: $([ -n "$BRAVE_API_KEYS" ] && echo '✅ Configured' || echo '⚪ Not Configured')"
           echo "  SearXNG Base URLs: $([ -n "$SEARXNG_BASE_URLS" ] && echo '✅ Configured' || echo '⚪ Not Configured')"
+          case "${SEARXNG_PUBLIC_INSTANCES_ENABLED,,}" in
+            0|false|no|off)
+              echo "  SearXNG Public Instances: ❌ Disabled"
+              ;;
+            "")
+              echo "  SearXNG Public Instances: ⚪ Disabled by default (public instances are subject to general rate limiting; please explicitly set to `true` to enable)."
+              ;;
+            *)
+              echo "  SearXNG Public Instances: ✅ Enabled"
+              ;;
+          esac
           echo ""
           echo "【Notification Channels】"
           echo "  WeChat Work: $([ -n "$WECHAT_WEBHOOK_URL" ] && echo '✅ Configured' || echo '⚪ Not Configured')"
@@ -503,7 +514,53 @@ jobs:
           echo "  Pushover:   $([ -n "$PUSHOVER_USER_KEY" ] && echo '✅ Configured' || echo '⚪ Not Configured')"
           echo "  PushPlus:   $([ -n "$PUSHPLUS_TOKEN" ] && echo '✅ Configured' || echo '⚪ Not Configured')"
           echo "  Discord:    $([ -n "$DISCORD_WEBHOOK_URL" ] && echo '✅ Configured' || echo '⚪ Not Configured')"
-          echo "=========================================="
+          echo "  Slack:      $(([ -n "$SLACK_WEBHOOK_URL" ] || ([ -n "$SLACK_BOT_TOKEN" ] && [ -n "$SLACK_CHANNEL_ID" ])) && echo '✅ Configured' || echo '⚪ Not Configured')"
+          echo ""
           
+          # Constructing command-line arguments
+          FORCE_RUN_ARG=""
+          if [ "${{ github.event.inputs.force_run }}" = "true" ]; then
+            FORCE_RUN_ARG="--force-run"
+            echo "⚡ Forced execution mode enabled (skipping trading day check)"
+          fi
+
+          # Execution Analysis
+          if [ "$MODE" = "market-only" ]; then
+            python main.py --market-review $FORCE_RUN_ARG
+          elif [ "$MODE" = "stocks-only" ]; then
+            python main.py --no-market-review $FORCE_RUN_ARG
+          else
+            python main.py $FORCE_RUN_ARG
+          fi
+      
+      - name: Upload analysis report
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: analysis-reports-${{ github.run_number }}
+          path: |
+            reports/
+            logs/
+          retention-days: 30
+      
+      - name: Display execution results
+        if: always()
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "📊 Analysis complete "
+          echo "=========================================="
+          if [ -d "reports" ] && [ "$(ls -A reports 2>/dev/null)" ]; then
+            echo "Generated report:"
+            ls -la reports/
+          else
+            echo "⚠️ Report file not generated."
+          fi
+          echo ""
+          if [ -f "logs/stock_analysis_$(date +%Y%m%d).log" ]; then
+            echo "📜 Recent logs (last 30 lines):"
+            tail -30 logs/stock_analysis_*.log 2>/dev/null || echo "No logs"
+          fi
+
           # Execute main program
           python main.py --mode "$MODE"
