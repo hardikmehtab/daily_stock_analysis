@@ -45,21 +45,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v5
       
-      - name: Dynamic DST Delay for New York Time
-        run: |
-          # Get the current hour in New York (24-hour format)
-          NY_HOUR=$(TZ="America/New_York" date +"%H")
-          
-          echo "Current hour in New York is: $NY_HOUR:00"
-          
-          # If it is 15:00 (3:00 PM EST), it's winter standard time. Market closes in 1 hour.
-          if [ "$NY_HOUR" -eq 15 ]; then
-            echo "Standard Time detected. Sleeping 60 minutes until 4:00 PM EST market close..."
-            sleep 3600
-          else
-            echo "Daylight Saving Time detected. It is 4:00 PM EDT. Proceeding immediately..."
-          fi
-      
       - name: Setup Python Environment
         uses: actions/setup-python@v6
         with:
@@ -76,6 +61,21 @@ jobs:
         run: |
           mkdir -p data logs reports
       
+      - name: Dynamic DST Delay for New York Time
+        run: |
+          # Get the current hour in New York (24-hour format)
+          NY_HOUR=$(TZ="America/New_York" date +"%H")
+          
+          echo "Current hour in New York is: $NY_HOUR:00"
+          
+          # If it is 15:00 (3:00 PM EST), it's winter standard time. Market closes in 1 hour.
+          if [ "$NY_HOUR" -eq 15 ]; then
+            echo "Standard Time detected. Sleeping 60 minutes until 4:00 PM EST market close..."
+            sleep 3600
+          else
+            echo "Daylight Saving Time detected. It is 4:00 PM EDT. Proceeding immediately..."
+          fi
+
       - name: Execute stock analysis
         env:
           # ==========================================
@@ -446,11 +446,11 @@ jobs:
           # If you have access to TickFlow or Tushare Pro, you can place `tickflow` or `tushare` earlier in the list based on your access privileges.
           REALTIME_SOURCE_PRIORITY: ${{ vars.REALTIME_SOURCE_PRIORITY || 'yfinance,longbridge,tencent' }}
           
-        run: |
         # Configuration for selected stocks:
         # 1. Repository/Environment secrets or Repository variables (STOCK_LIST_CONFIG)
         # 2. Runner environment variables injected with the same name (STOCK_LIST)
-        # 3. Minimal default values
+        # 3. Minimal default values    
+        run: |
           if [ -n "${STOCK_LIST_CONFIG:-}" ]; then
             export STOCK_LIST="$STOCK_LIST_CONFIG"
           elif [ -z "${STOCK_LIST:-}" ]; then
